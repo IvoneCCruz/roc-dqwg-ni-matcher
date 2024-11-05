@@ -1,3 +1,15 @@
+# Databricks notebook source
+# MAGIC %pip install xlsxwriter
+
+# COMMAND ----------
+
+# MAGIC %sh
+# MAGIC ls 
+# MAGIC unzip "Gleif Golden Copy.csv.zip"
+# MAGIC
+
+# COMMAND ----------
+
 #!/usr/bin/env python
 # coding: utf-8
 # @author: Alejandro Morales Fernández. Banco de España.
@@ -30,6 +42,11 @@ root = logging.getLogger()
 root.setLevel(logging.DEBUG)
 handler = logging.StreamHandler(sys.stdout)
 
+sdf = spark.sql(
+    "select lei_nr as LEI, org_nr as id1, entity_name as `Entity Name` from silver.entity.`current` "
+    "where lei_nr is not null and org_nr is not null and to_date_status = '2099-12-31' "
+    "limit 10"
+)
 
 ## Default Params ##
 
@@ -137,9 +154,10 @@ entityStatus_allowed = ['ACTIVE']
 logging.info("Loading Gleif  Golden Copy")
 
 data_file_name = "Gleif Golden Copy.csv.zip"
+data_file_name = "/Volumes/sandbox/icc/icc/20241031-0800-gleif-goldencopy-lei2-golden-copy.csv"
 data_path = os.path.join(exec_dir, data_file_name).replace("\\", "/")
 lei_gc_original_df = pd.read_csv(data_path, sep=",", low_memory = False, encoding = 'utf_8_sig')  # , nrows = 1000000
-
+print(f"##################Loading Gleif Golden Copy from {data_path}##################", lei_gc_df)
 logging.info(f"Loading Country {country_code} from  Gleif  Golden Copy")
 
 lei_gc_original_df['Legal Jursidiction (2 caracters)'] =  lei_gc_original_df['Entity.LegalJurisdiction'].str.slice(start=0, stop=2)
@@ -234,7 +252,6 @@ logging.info("Loading National Dataset")
 
 data_file_name = "National Dataset.csv"
 data_path = os.path.join(exec_dir, data_file_name)
-sdf = spark.sql("select lei_nr as LEI, org_nr as id1, entity_name from silver.entity.`current` where lei_nr is not null")
 # national_dataset_original_df = pd.read_csv(data_path, sep=";", encoding=encoding, on_bad_lines='warn')  # , nrows = 1000000
 national_dataset_original_df = sdf.toPandas()
 # check if LEI column is present in the National Dataset. If it is found,
@@ -466,6 +483,7 @@ for registrationStatus_allowed in registrationStatus_list:
     # Ensure the fields to compare are string type
     national_dataset_df = national_dataset_original_df[:]
 
+
     for entityId in entityIds:
         if is_numeric_dtype(lei_gc_df[entityId]):
             lei_gc_df = lei_gc_df.astype({entityId: 'Int64'})
@@ -480,15 +498,29 @@ for registrationStatus_allowed in registrationStatus_list:
         national_dataset_df = national_dataset_df.astype({id: 'string'})
 
     # Initialize the class table_calculator
-
+    print("#####################DEBUG OUTPUT: ##################\n", lei_present, entityIds, ids, n_ids, lou_id, ra_id, national_entity_name, gleif_entity_name)
     table_calculator_instance = table_calculator(lei_present, entityIds, ids, n_ids, lou_id, ra_id, national_entity_name, gleif_entity_name)
 
 
-    ## LEI -- Entity match
-    ## df_trace is the main table used in this program. It contains all the possible matches between ids and LEIs
+# COMMAND ----------
+
+## LEI -- Entity match
+## df_trace is the main table used in this program. It contains all the possible matches between ids and LEIs
+
+df_trace = table_calculator_instance.calculate_matches(lei_gc_df, national_dataset_df)
+print("####################CALC MATCHES#####################", lei_gc_df, national_dataset_df)
 
 
-    df_trace = table_calculator_instance.calculate_matches(lei_gc_df, national_dataset_df)
+# COMMAND ----------
+
+print(df_trace)
+
+# COMMAND ----------
+
+
+
+    
+    display(df_trace)
     if df_trace.shape[0] == 0:
         logging.error(f"The datasets do not match in any id for {registrationStatus_allowed}")
         raise AssertionError(f"No matching for {registrationStatus_allowed}")
