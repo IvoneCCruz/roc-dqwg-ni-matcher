@@ -1,10 +1,32 @@
 # Databricks notebook source
-# MAGIC %pip install xlsxwriter
+# MAGIC %pip install xlsxwriter openpyxl
 
 # COMMAND ----------
 
 # Restart python to make sure that the libraries are loaded
 dbutils.library.restartPython()
+
+# COMMAND ----------
+
+# -------------------------------------------------------------------------- #
+# Neccessary data files:                                                     #
+# 20241031-0800-gleif-goldencopy-lei2-golden-copy.csv (Thie is a big file )  #
+# elf-code-list-v1.4.1.xlsx                                                  #
+# ra_list_v1.7.xlsx                                                          #
+# lou_attributes.csv                                                         #
+#                                                                            #
+# Datafiles need to be in the volume below:                                  #
+# -------------------------------------------------------------------------- #
+exec_dir = '/Volumes/sandbox/icc/icc'
+
+# -------------------------------------------------------------------------- #
+# Instead of a national file, we use a query to fetch this data              #
+# -------------------------------------------------------------------------- #
+sdf = spark.sql(
+    "select lei_nr as LEI, org_nr as id1, entity_name as `Entity Name` from silver.entity.`current` "
+    "where lei_nr is not null and org_nr is not null and to_date_status = '2099-12-31' "
+)
+
 
 # COMMAND ----------
 
@@ -37,14 +59,8 @@ warnings.simplefilter("ignore")
 
 import logging
 root = logging.getLogger()
-root.setLevel(logging.DEBUG)
+root.setLevel(logging.INFO)
 handler = logging.StreamHandler(sys.stdout)
-
-sdf = spark.sql(
-    "select lei_nr as LEI, org_nr as id1, entity_name as `Entity Name` from silver.entity.`current` "
-    "where lei_nr is not null and org_nr is not null and to_date_status = '2099-12-31' "
-    "limit 10"
-)
 
 ## Default Params ##
 
@@ -91,7 +107,7 @@ except:
 
 registrationStatus_list = ['ISSUED', 'LAPSED']
 
-exec_dir = os.getcwd()
+
 output_dir = os.path.join(exec_dir, 'output_data')
 
 if not os.path.exists(output_dir):
@@ -152,19 +168,18 @@ entityStatus_allowed = ['ACTIVE']
 # 2 data files are required: "Gleif Golden Copy.csv.zip" and "National Dataset.csv.zip"
 logging.info("Loading Gleif  Golden Copy")
 
-data_file_name = "Gleif Golden Copy.csv.zip"
-data_file_name = "/Volumes/sandbox/icc/icc/20241031-0800-gleif-goldencopy-lei2-golden-copy.csv"
+# data_file_name = "Gleif Golden Copy.csv.zip"
+data_file_name = "20241031-0800-gleif-goldencopy-lei2-golden-copy.csv"
 data_path = os.path.join(exec_dir, data_file_name).replace("\\", "/")
-df = spark.read.csv(data_file_name, header=True, inferSchema=True)
 
 # COMMAND ----------
 
-lei_gc_original_df= df.toPandas()
+# Slow cell
+lei_gc_original_df = pd.read_csv(data_path, sep=",", low_memory = False, encoding = 'utf_8_sig')
 
 # COMMAND ----------
 
 
-# lei_gc_original_df = pd.read_csv(data_path, sep=",", low_memory = False, encoding = 'utf_8_sig')  # , nrows = 1000000
 print(f"##################Loading Gleif Golden Copy from {data_path}##################")
 display(lei_gc_original_df.head(5))
 
@@ -193,14 +208,12 @@ logging.info("Loading Metadata")
 # "lou_attributes.csv", extracted from https://api.gleif.org/api/v1/lei-issuers
 # "2022-03-23_ra_list_v1.7.xlsx", extracted from https://www.gleif.org/en/about-lei/code-lists/gleif-registration-authorities-list#
 # elf-code-list-v1.4.1.xlsx, extracted from https://www.gleif.org/en/about-lei/code-lists/iso-20275-entity-legal-forms-code-list
-
 data_file_name = "lou_attributes.csv"
 data_path = os.path.join(exec_dir, data_file_name).replace("\\", "/")
 lou_name_country_df = pd.read_csv(data_path, sep=";", encoding = 'utf_8_sig')
 
 
 # COMMAND ----------
-
 
 
 data_file_name = "ra_list_v1.7.xlsx"
@@ -211,13 +224,13 @@ ra_name_country_df = pd.read_excel(data_path)
 
 # COMMAND ----------
 
-
-
-
-
 data_file_name = "elf-code-list-v1.4.1.xlsx"
 data_path = os.path.join(exec_dir, data_file_name).replace("\\", "/")
 elf_code_df = pd.read_excel(data_path)
+
+# COMMAND ----------
+
+
 elf_code_df = elf_code_df[elf_code_df['Country Code \n(ISO 3166-1)'] == country_code]
 elf_code_df = elf_code_df[['Entity Legal Form name Local name', 'Abbreviations Local language']]
 elf_code_df['Abbreviations Local language'] = elf_code_df['Abbreviations Local language'].str.upper().str.split(';')
@@ -232,6 +245,17 @@ legal_form_abb_dict = dict(zip(elf_code_df['Entity Legal Form name Local name'].
 
 active_inactive = lei_gc_original_df[['LEI', 'Entity.EntityStatus', 'Registration.RegistrationStatus']].groupby([ 'Entity.EntityStatus', 'Registration.RegistrationStatus'], dropna=False).agg(['nunique'])
 active_inactive.columns = active_inactive.columns.droplevel(1)
+
+# COMMAND ----------
+
+display(active_inactive)
+
+# COMMAND ----------
+
+display(lei_gc_original_df)
+
+# COMMAND ----------
+
 active_inactive = active_inactive.sort_values(['Entity.EntityStatus', 'LEI'], ascending = [True, False])
 active_inactive.reset_index(inplace = True)
 
@@ -278,6 +302,7 @@ logging.info("Loading National Dataset")
 
 data_file_name = "National Dataset.csv"
 data_path = os.path.join(exec_dir, data_file_name)
+sdf = spark.sql("select lei_nr as LEI, org_nr as id1, entity_name from silver.entity.`current` where lei_nr is not null")
 # national_dataset_original_df = pd.read_csv(data_path, sep=";", encoding=encoding, on_bad_lines='warn')  # , nrows = 1000000
 national_dataset_original_df = sdf.toPandas()
 # check if LEI column is present in the National Dataset. If it is found,
@@ -509,7 +534,6 @@ for registrationStatus_allowed in registrationStatus_list:
     # Ensure the fields to compare are string type
     national_dataset_df = national_dataset_original_df[:]
 
-
     for entityId in entityIds:
         if is_numeric_dtype(lei_gc_df[entityId]):
             lei_gc_df = lei_gc_df.astype({entityId: 'Int64'})
@@ -524,29 +548,15 @@ for registrationStatus_allowed in registrationStatus_list:
         national_dataset_df = national_dataset_df.astype({id: 'string'})
 
     # Initialize the class table_calculator
-    print("#####################DEBUG OUTPUT: ##################\n", lei_present, entityIds, ids, n_ids, lou_id, ra_id, national_entity_name, gleif_entity_name)
+
     table_calculator_instance = table_calculator(lei_present, entityIds, ids, n_ids, lou_id, ra_id, national_entity_name, gleif_entity_name)
 
 
-# COMMAND ----------
-
-## LEI -- Entity match
-## df_trace is the main table used in this program. It contains all the possible matches between ids and LEIs
-
-df_trace = table_calculator_instance.calculate_matches(lei_gc_df, national_dataset_df)
-print("####################CALC MATCHES#####################", lei_gc_df, national_dataset_df)
+    ## LEI -- Entity match
+    ## df_trace is the main table used in this program. It contains all the possible matches between ids and LEIs
 
 
-# COMMAND ----------
-
-print(df_trace)
-
-# COMMAND ----------
-
-
-
-    
-    display(df_trace)
+    df_trace = table_calculator_instance.calculate_matches(lei_gc_df, national_dataset_df)
     if df_trace.shape[0] == 0:
         logging.error(f"The datasets do not match in any id for {registrationStatus_allowed}")
         raise AssertionError(f"No matching for {registrationStatus_allowed}")
@@ -717,3 +727,7 @@ print(df_trace)
 
 #if __name__ == "__main__":
 #    main()
+
+# COMMAND ----------
+
+

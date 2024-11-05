@@ -188,6 +188,7 @@ legal_form_abb_dict = dict(zip(elf_code_df['Entity Legal Form name Local name'].
 
 active_inactive = lei_gc_original_df[['LEI', 'Entity.EntityStatus', 'Registration.RegistrationStatus']].groupby([ 'Entity.EntityStatus', 'Registration.RegistrationStatus'], dropna=False).agg(['nunique'])
 active_inactive.columns = active_inactive.columns.droplevel(1)
+
 active_inactive = active_inactive.sort_values(['Entity.EntityStatus', 'LEI'], ascending = [True, False])
 active_inactive.reset_index(inplace = True)
 
