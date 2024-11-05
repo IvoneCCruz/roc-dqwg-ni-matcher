@@ -3,10 +3,8 @@
 
 # COMMAND ----------
 
-# MAGIC %sh
-# MAGIC ls 
-# MAGIC unzip "Gleif Golden Copy.csv.zip"
-# MAGIC
+# Restart python to make sure that the libraries are loaded
+dbutils.library.restartPython()
 
 # COMMAND ----------
 
@@ -148,6 +146,7 @@ gleif_legaljurisdiction = 'Entity.LegalJurisdiction'
 entityStatus_allowed = ['ACTIVE']
 
 
+# COMMAND ----------
 
 ## Input reading ##
 # 2 data files are required: "Gleif Golden Copy.csv.zip" and "National Dataset.csv.zip"
@@ -156,8 +155,23 @@ logging.info("Loading Gleif  Golden Copy")
 data_file_name = "Gleif Golden Copy.csv.zip"
 data_file_name = "/Volumes/sandbox/icc/icc/20241031-0800-gleif-goldencopy-lei2-golden-copy.csv"
 data_path = os.path.join(exec_dir, data_file_name).replace("\\", "/")
-lei_gc_original_df = pd.read_csv(data_path, sep=",", low_memory = False, encoding = 'utf_8_sig')  # , nrows = 1000000
-print(f"##################Loading Gleif Golden Copy from {data_path}##################", lei_gc_df)
+df = spark.read.csv(data_file_name, header=True, inferSchema=True)
+
+# COMMAND ----------
+
+lei_gc_original_df= df.toPandas()
+
+# COMMAND ----------
+
+
+# lei_gc_original_df = pd.read_csv(data_path, sep=",", low_memory = False, encoding = 'utf_8_sig')  # , nrows = 1000000
+print(f"##################Loading Gleif Golden Copy from {data_path}##################")
+display(lei_gc_original_df.head(5))
+
+
+# COMMAND ----------
+
+
 logging.info(f"Loading Country {country_code} from  Gleif  Golden Copy")
 
 lei_gc_original_df['Legal Jursidiction (2 caracters)'] =  lei_gc_original_df['Entity.LegalJurisdiction'].str.slice(start=0, stop=2)
@@ -171,6 +185,7 @@ lei_gc_original_df = lei_gc_original_large_df[lei_gc_original_large_df['Legal Ju
 
 
 
+# COMMAND ----------
 
 logging.info("Loading Metadata")
 
@@ -183,11 +198,22 @@ data_file_name = "lou_attributes.csv"
 data_path = os.path.join(exec_dir, data_file_name).replace("\\", "/")
 lou_name_country_df = pd.read_csv(data_path, sep=";", encoding = 'utf_8_sig')
 
+
+# COMMAND ----------
+
+
+
 data_file_name = "ra_list_v1.7.xlsx"
 data_path = os.path.join(exec_dir, data_file_name).replace("\\", "/")
 ra_name_country_df = pd.read_excel(data_path)
 
 # Read and clean the elf code dataset
+
+# COMMAND ----------
+
+
+
+
 
 data_file_name = "elf-code-list-v1.4.1.xlsx"
 data_path = os.path.join(exec_dir, data_file_name).replace("\\", "/")
