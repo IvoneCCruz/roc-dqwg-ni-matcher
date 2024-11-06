@@ -22,10 +22,10 @@ exec_dir = '/Volumes/sandbox/icc/icc'
 # -------------------------------------------------------------------------- #
 # Instead of a national file, we use a query to fetch this data              #
 # -------------------------------------------------------------------------- #
-sdf = spark.sql(
+national_dataset_original_df = spark.sql(
     "select lei_nr as LEI, org_nr as id1, entity_name as `Entity Name` from silver.entity.`current` "
     "where lei_nr is not null and org_nr is not null and to_date_status = '2099-12-31' "
-)
+).toPandas()
 
 
 # COMMAND ----------
@@ -302,9 +302,8 @@ logging.info("Loading National Dataset")
 
 data_file_name = "National Dataset.csv"
 data_path = os.path.join(exec_dir, data_file_name)
-sdf = spark.sql("select lei_nr as LEI, org_nr as id1, entity_name from silver.entity.`current` where lei_nr is not null")
 # national_dataset_original_df = pd.read_csv(data_path, sep=";", encoding=encoding, on_bad_lines='warn')  # , nrows = 1000000
-national_dataset_original_df = sdf.toPandas()
+
 # check if LEI column is present in the National Dataset. If it is found,
 # a LEI match is also performed, along the others quality controls
 lei_present = True if 'LEI' in national_dataset_original_df.columns else False
