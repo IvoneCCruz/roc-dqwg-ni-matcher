@@ -23,8 +23,8 @@ exec_dir = '/Volumes/sandbox/icc/icc'
 # Instead of a national file, we use a query to fetch this data              #
 # -------------------------------------------------------------------------- #
 national_dataset_original_df = spark.sql(
-    "select lei_nr as LEI, org_nr as id1, entity_name as `Entity Name` from silver.entity.`current` "
-    "where lei_nr is not null and org_nr is not null and to_date_status = '2099-12-31' "
+    "select lei_nr as LEI, org_nr as id1, bank_nr as id2, entity_name as `Entity Name` from silver.entity.`current` "
+    "where to_date_status = '2099-12-31' "
 ).toPandas()
 
 
@@ -62,6 +62,7 @@ root = logging.getLogger()
 root.setLevel(logging.INFO)
 handler = logging.StreamHandler(sys.stdout)
 
+
 ## Default Params ##
 
 threshold_partial_name = 0.8 # sets the similarity threshold to decide if two entities are the same according to their names
@@ -96,11 +97,11 @@ try:
 
 except:
     sys.stdout.write('Introduce country code (example: ES for Spain)')
-    country_code = input('$: ')
+    country_code = 'NO'
     sys.stdout.write('Introduce the number of national identifiers to be used')
-    n_ids = int(input('$: '))
+    n_ids = 2
     sys.stdout.write('Introduce the encoding of the national dataset (default utf_8_sig)')
-    encoding = input('$: ')
+    encoding = ''
     if encoding == '':
         encoding = 'utf_8_sig'
 
@@ -108,7 +109,7 @@ except:
 registrationStatus_list = ['ISSUED', 'LAPSED']
 
 
-output_dir = os.path.join(exec_dir, 'output_data')
+output_dir = 'output_data'
 
 if not os.path.exists(output_dir):
     # creates the output directory
@@ -300,8 +301,8 @@ location_df['TOTAL'] = location_df['ACTIVE'] + location_df['INACTIVE']
 logging.info("Loading National Dataset")
 
 
-data_file_name = "National Dataset.csv"
-data_path = os.path.join(exec_dir, data_file_name)
+# data_file_name = "National Dataset.csv"
+# data_path = os.path.join(exec_dir, data_file_name)
 # national_dataset_original_df = pd.read_csv(data_path, sep=";", encoding=encoding, on_bad_lines='warn')  # , nrows = 1000000
 
 # check if LEI column is present in the National Dataset. If it is found,
